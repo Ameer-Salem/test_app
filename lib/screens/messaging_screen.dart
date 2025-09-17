@@ -1,10 +1,29 @@
+import 'package:flutter/cupertino.dart' hide Column;
 import 'package:flutter/material.dart';
-import 'package:test_app/widgets/messagebubble.dart';
+import 'package:test_app/models/app_database.dart';
+import 'package:test_app/services/message_service.dart';
 import 'package:test_app/widgets/messagebubble_widget.dart';
 
-class MessagingScreen extends StatelessWidget {
+class MessagingScreen extends StatefulWidget {
   const MessagingScreen({super.key});
 
+  @override
+  State<MessagingScreen> createState() => _MessagingScreenState();
+}
+
+class _MessagingScreenState extends State<MessagingScreen> {
+
+  late final MessageService service;
+  bool sender = true;
+  
+  @override
+  void initState() {
+    super.initState();
+    final db = AppDatabase();
+    service = MessageService(db);
+    
+  }
+  TextEditingController messageController = TextEditingController();
   @override
   Widget build(BuildContext context) {
     final args =
@@ -19,19 +38,44 @@ class MessagingScreen extends StatelessWidget {
           icon: Icon(Icons.arrow_back_rounded),
         ),
         title: Text(args['title']),
+        actions: [
+          CupertinoSwitch(
+            value: sender,
+            onChanged: (value) {
+              setState(() {
+                sender = value;
+              });
+            },
+          ),
+          Text(sender ? 'Sender' : 'Receiver'),
+        ],
       ),
       body: Column(
         children: [
           Expanded(
-            child: ListView.builder( 
-              itemBuilder: (context, index) => MessageBubble(
-                text: 'Message asdfdygfrtywrywerrtwert $index',
-                time: '10:00 AM',
-                isMe: index % 2 == 0,
-              ),
-              itemCount: 25,
+            child: StreamBuilder<List<MessageWithAttachments>>(
+              stream: service.watchMessagesWithAttachments(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData){
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final messages = snapshot.data!;
+                return ListView.builder(
+                  itemCount: messages.length,
+                  itemBuilder: (context, index) {
+                    final message = messages[index];
+                    return MessageBubble(
+                      text: message.message.textContent ?? '',
+                      time: message.message.timeStamp.toString(),
+                      isMe: message.message.senderId == 1,
+                    );
+                  },
+                );
+              },
             ),
           ),
+
+          // text field and plus & send buttons row
           Container(
             padding: EdgeInsets.symmetric(vertical: 8),
             child: Row(
@@ -45,6 +89,7 @@ class MessagingScreen extends StatelessWidget {
                 ),
                 Expanded(
                   child: TextField(
+                    controller: messageController,
                     decoration: InputDecoration(
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(25),
@@ -56,7 +101,11 @@ class MessagingScreen extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: IconButton(
-                    onPressed: () {},
+                    onPressed: () async{
+                      if (messageController.text.isEmpty) return;
+                      await service.addMessage(senderId: sender ? 1 : 2, receiverId: sender ? 2 : 1,type: "text", text: messageController.text, isSent: sender);
+                      messageController.clear();
+                    },
                     icon: Icon(Icons.send_rounded),
                   ),
                 ),

@@ -8,6 +8,6 @@ class Messages extends Table {
   TextColumn get type => text()();
   TextColumn get textContent => text().nullable()();
   DateTimeColumn get timeStamp => dateTime()();
-  BoolColumn get isSent => boolean().withDefault(Constant(true))();
+  BoolColumn get isSent => boolean().withDefault(Constant(false))();
 
 }

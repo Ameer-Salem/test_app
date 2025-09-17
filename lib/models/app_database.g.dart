@@ -85,7 +85,7 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
     defaultConstraints: GeneratedColumn.constraintIsAlways(
       'CHECK ("is_sent" IN (0, 1))',
     ),
-    defaultValue: Constant(true),
+    defaultValue: Constant(false),
   );
   @override
   List<GeneratedColumn> get $columns => [

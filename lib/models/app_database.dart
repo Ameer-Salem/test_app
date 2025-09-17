@@ -30,12 +30,11 @@ class AppDatabase extends _$AppDatabase {
     final rows = await query.get();
 
     return rows.map((row){
-
       final message = row.readTable(messages);
       final attachment = row.readTableOrNull(attachments);
       return MessageWithAttachments(message, attachment != null ? [attachment] : []);
-
-    }).toList(); }
+    }).toList(); 
+  }
 }
 
 LazyDatabase _openConnection() {

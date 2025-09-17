@@ -5,7 +5,8 @@ import 'package:test_app/screens/home_screen.dart';
 import 'package:test_app/screens/messaging_screen.dart';
 import 'package:test_app/screens/settings_screen.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
 
@@ -44,7 +45,7 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 1;
   int _titleIndex = 0;
-  
+
   final List<String> _titles = ['Home', 'Chats', 'Settings'];
   final List<Widget> _screens = [
     HomeScreen(), // 0
@@ -63,7 +64,8 @@ class _MainScreenState extends State<MainScreen> {
             onPressed: () {
               AdaptiveTheme.of(context).toggleThemeMode();
             },
-        )],
+          ),
+        ],
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
       body: _screens[_selectedIndex],
