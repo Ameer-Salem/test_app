@@ -1,13 +1,35 @@
 import 'package:adaptive_theme/adaptive_theme.dart';
 import 'package:flutter/material.dart';
-import 'package:test_app/screens/chat_screen.dart';
-import 'package:test_app/screens/home_screen.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:provider/provider.dart';
+import 'package:test_app/controllers/database_controller.dart';
+import 'package:test_app/controllers/main_controller.dart';
+import 'package:test_app/controllers/messaging_controller.dart';
+import 'package:test_app/controllers/settings_controller.dart';
+import 'package:test_app/models/app_database.dart';
+import 'package:test_app/screens/ble_check.dart';
+import 'package:test_app/screens/device_screen.dart';
+import 'package:test_app/screens/main_screen.dart';
 import 'package:test_app/screens/messaging_screen.dart';
-import 'package:test_app/screens/settings_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const MyApp());
+
+  await Permission.bluetoothScan.request();
+  await Permission.bluetoothConnect.request();
+  await Permission.location.request();
+  final db = AppDatabase();
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => MainController()),
+        ChangeNotifierProvider(create: (_) => SettingsController()),
+        ChangeNotifierProvider(create: (_) => MessagingController()),
+        ChangeNotifierProvider(create: (_) => DatabaseController(db)),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -27,64 +49,11 @@ class MyApp extends StatelessWidget {
         darkTheme: darkTheme,
         initialRoute: "/",
         routes: {
-          "/": (context) => MainScreen(),
-          "/messaging": (context) => MessagingScreen(),
+          "/": (context) => BleCheckScreen(),
+          "/main": (context) => MainScreen(),
+          "/main/messaging": (context) => MessagingScreen(),
+          "/main/device": (context) => DeviceScreen(),
         },
-      ),
-    );
-  }
-}
-
-class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
-
-  @override
-  State<MainScreen> createState() => _MainScreenState();
-}
-
-class _MainScreenState extends State<MainScreen> {
-  int _selectedIndex = 1;
-  int _titleIndex = 0;
-
-  final List<String> _titles = ['Home', 'Chats', 'Settings'];
-  final List<Widget> _screens = [
-    HomeScreen(), // 0
-    ChatScreen(), // 1
-    SettingsScreen(), //2
-  ];
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        actionsPadding: EdgeInsets.all(8),
-        title: Text(_titles[_titleIndex]),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.light_mode),
-            onPressed: () {
-              AdaptiveTheme.of(context).toggleThemeMode();
-            },
-          ),
-        ],
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-      ),
-      body: _screens[_selectedIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: (index) {
-          setState(() {
-            _selectedIndex = index;
-            _titleIndex = index;
-          });
-        },
-        items: [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'), // 0
-          BottomNavigationBarItem(icon: Icon(Icons.chat), label: 'Chat'), // 1
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: 'Settings',
-          ), //2
-        ],
       ),
     );
   }

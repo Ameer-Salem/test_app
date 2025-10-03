@@ -21,20 +21,7 @@ class AppDatabase extends _$AppDatabase {
       into(messages).insert(message);
   Future<int> insertAttachment(AttachmentsCompanion attachment) =>
       into(attachments).insert(attachment);
-
-  Future<List<MessageWithAttachments>> getMessagesWithAttachments() async {
-    final query = select(messages).join([
-      leftOuterJoin(attachments, attachments.messageId.equalsExp(messages.id)),
-    ]);
-
-    final rows = await query.get();
-
-    return rows.map((row){
-      final message = row.readTable(messages);
-      final attachment = row.readTableOrNull(attachments);
-      return MessageWithAttachments(message, attachment != null ? [attachment] : []);
-    }).toList(); 
-  }
+  
 }
 
 LazyDatabase _openConnection() {

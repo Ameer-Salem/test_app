@@ -1,54 +1,60 @@
 import 'package:flutter/material.dart';
+import 'package:test_app/widgets/voicemessage_player_widget.dart';
 
 class MessageBubble extends StatelessWidget {
-  final String text;
+  final String? text;
   final bool isMe;
   final String time;
+  final String type;
+  final Duration? duration;
 
   const MessageBubble({
     super.key,
     required this.text,
     required this.isMe,
     required this.time,
+    required this.type,
+    this.duration,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-        padding: const EdgeInsets.all(12),
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.7),
-        decoration: BoxDecoration(
-          color: isMe ? Colors.blueAccent : Colors.grey.shade300,
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(16),
-            topRight: const Radius.circular(16),
-            bottomLeft: isMe ? const Radius.circular(16) : Radius.circular(4),
-            bottomRight: isMe ? Radius.circular(4) : const Radius.circular(16),
+    final bgColor = isMe
+        ? Theme.of(context).colorScheme.primary
+        : Theme.of(context).colorScheme.inverseSurface;
+    final align = isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start;
+
+    return Container(
+      margin: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+      child: Column(
+        crossAxisAlignment: align,
+        children: [
+          Container(
+            constraints: BoxConstraints(
+              minWidth: MediaQuery.sizeOf(context).width * 0.2,
+              maxWidth: MediaQuery.sizeOf(context).width * 0.75,
+            ),
+            padding: EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: type == "text"
+                ? Text(
+                    text ?? "",
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: isMe ? Theme.of(context).colorScheme.onPrimary : Theme.of(context).colorScheme.onInverseSurface,
+                    ),
+                  )
+                : VoiceMessagePlayer(
+                    duration: duration ?? Duration.zero,
+                    isMe: isMe,
+                  ),
           ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              text,
-              style: TextStyle(
-                color: isMe ? Colors.white : Colors.black,
-                fontSize: 16,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              time,
-              style: TextStyle(
-                fontSize: 10,
-                color: isMe ? Colors.white70 : Colors.black54,
-              ),
-            ),
-          ],
-        ),
+          SizedBox(height: 4),
+          Text(time, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+        ],
       ),
     );
   }
