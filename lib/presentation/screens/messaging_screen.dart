@@ -1,23 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:test_app/controllers/database_controller.dart';
+import 'package:test_app/controllers/ble_controller.dart';
 import 'package:test_app/controllers/messaging_controller.dart';
-import 'package:test_app/widgets/messagebubble_widget.dart';
-import 'package:test_app/widgets/voice_recording_widget.dart';
+import 'package:test_app/presentation/widgets/messagebubble_widget.dart';
+import 'package:test_app/presentation/widgets/voice_recording_widget.dart';
 
 class MessagingScreen extends StatelessWidget {
-  MessagingScreen({super.key});
+  const MessagingScreen({super.key});
 
-  late bool sender = true;
 
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<MessagingController>(context);
-    final service = Provider.of<DatabaseController>(
-      context,
-      listen: false,
-    ).service;
+    final bleController = Provider.of<BleController>(context, listen: false);
     final args =
         ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
     return Scaffold(
@@ -30,20 +26,12 @@ class MessagingScreen extends StatelessWidget {
           icon: Icon(Icons.arrow_back_rounded),
         ),
         title: Text(args['title']),
-        actions: [
-          Switch(
-            value: sender,
-            onChanged: (value) {
-              sender = value;
-            },
-          ),
-        ],
       ),
       body: Column(
         children: [
           Expanded(
             child: StreamBuilder(
-              stream: service.getMessagesWithAttachments(),
+              stream: bleController.service.getMessagesWithAttachments(),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) {
                   return Center(child: CircularProgressIndicator());
@@ -104,9 +92,9 @@ class MessagingScreen extends StatelessWidget {
                   child: provider.controller.text.isEmpty
                       ? VoiceRecorderWidget(
                           onSend: () {
-                            service.addMessage(
-                              senderId: sender ? 1 : 2,
-                              receiverId: sender ? 2 : 1,
+                            bleController.service.addMessage(
+                              senderId: 1,
+                              receiverId: 1,
                               content: "Voice Message",
                               type: "voice",
                             );
@@ -119,11 +107,9 @@ class MessagingScreen extends StatelessWidget {
                             if (provider.controller.text.trim().isEmpty) {
                               return;
                             }
-                            service.addMessage(
-                              senderId: sender ? 1 : 2,
-                              receiverId: sender ? 2 : 1,
-                              content: provider.controller.text,
-                              type: "text",
+                            bleController.sendText(
+                              provider.controller.text.trim(),
+                              destination: 2 ,
                             );
                             provider.controller.clear();
                             provider.scrollToBottom();

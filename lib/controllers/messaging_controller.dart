@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:test_app/controllers/ble_controller.dart';
 
 class MessagingController extends ChangeNotifier {
   TextEditingController controller = TextEditingController();
@@ -13,4 +14,7 @@ class MessagingController extends ChangeNotifier {
     );
     notify();
   }
+
+
+
 }

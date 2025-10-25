@@ -1,16 +1,17 @@
 import 'package:adaptive_theme/adaptive_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
-import 'package:test_app/controllers/database_controller.dart';
+import 'package:test_app/controllers/ble_controller.dart';
 import 'package:test_app/controllers/main_controller.dart';
 import 'package:test_app/controllers/messaging_controller.dart';
 import 'package:test_app/controllers/settings_controller.dart';
 import 'package:test_app/models/app_database.dart';
-import 'package:test_app/screens/ble_check.dart';
-import 'package:test_app/screens/device_screen.dart';
-import 'package:test_app/screens/main_screen.dart';
-import 'package:test_app/screens/messaging_screen.dart';
+import 'package:test_app/presentation/screens/ble_check.dart';
+import 'package:test_app/presentation/screens/device_screen.dart';
+import 'package:test_app/presentation/screens/main_screen.dart';
+import 'package:test_app/presentation/screens/messaging_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,7 +26,7 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => MainController()),
         ChangeNotifierProvider(create: (_) => SettingsController()),
         ChangeNotifierProvider(create: (_) => MessagingController()),
-        ChangeNotifierProvider(create: (_) => DatabaseController(db)),
+        ChangeNotifierProvider(create: (_) => BleController(db)),
       ],
       child: const MyApp(),
     ),
@@ -52,7 +53,15 @@ class MyApp extends StatelessWidget {
           "/": (context) => BleCheckScreen(),
           "/main": (context) => MainScreen(),
           "/main/messaging": (context) => MessagingScreen(),
-          "/main/device": (context) => DeviceScreen(),
+        },
+        onGenerateRoute: (settings) {
+          if (settings.name == '/main/device') {
+            final device = settings.arguments as BluetoothDevice;
+            return MaterialPageRoute(
+              builder: (context) => DeviceScreen(device: device),
+            );
+          }
+          return null;
         },
       ),
     );

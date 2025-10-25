@@ -20,7 +20,7 @@ class ChatScreen extends StatelessWidget {
               Text('10:00 AM',style: TextStyle(color: Colors.grey, fontSize: 13),),
           ]),
           onTap: () {
-            Navigator.pushNamed(context, '/messaging',arguments: 
+            Navigator.pushNamed(context, '/main/messaging',arguments: 
             
             {
               'title': "User $index",

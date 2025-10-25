@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:test_app/widgets/voicemessage_player_widget.dart';
+import 'package:test_app/presentation/widgets/voicemessage_player_widget.dart';
 
 class MessageBubble extends StatelessWidget {
   final String? text;
