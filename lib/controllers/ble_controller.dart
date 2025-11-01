@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:drift/drift.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:test_app/models/app_database.dart';
@@ -67,25 +66,21 @@ class BleController extends ChangeNotifier {
       isConnected = true;
 
       _bleService.listenToNotifications(serviceUuid, txCharacteristicUuid, (
-        data,
+        packet,
       ) async {
-        if (data.isEmpty) return;
-        // Handle incoming data if needed
-
-        final messageText = String.fromCharCodes(
-          data
-        );
-        final type = switch (0) {
-          0 => "text",
-          1 => "attachment",
-          _ => "unknown",
-        };
-        await service.addMessage(
-          senderId: 2,
-          receiverId: 1,
-          type: type,
-          content: messageText,
-        );
+        if (packet.type == 0) {
+          // Ack
+          print("Ack received for seq: ${packet.sequence}");
+        } else if (packet.type == 1) {
+          // Text message
+          service.addMessage(
+            senderId: 2,
+            receiverId: packet.destination,
+            content: String.fromCharCodes(packet.payload),
+            type: "text",
+          );
+          print("Text: ${String.fromCharCodes(packet.payload)}");
+        }
       });
     } catch (e) {
       isConnected = false;
@@ -105,21 +100,8 @@ class BleController extends ChangeNotifier {
       notifyListeners();
     }
   }
-
-  // ====== READ ======
-  Future<List<int>> readCharacteristic(Guid charUuid) async {
-    if (connectedDevice == null) throw Exception("No device connected");
-
-    return await _bleService.readFromCharacteristic(serviceUuid, charUuid);
-  }
-
-  // ===== NOTIFY ======
-  void listenToCharacteristic(Guid charUuid, void Function(List<int>) onData) {
-    if (connectedDevice == null) throw Exception("No device connected");
-
-    _bleService.listenToNotifications(serviceUuid, charUuid, onData);
-  }
-
+  
+  // ===== MESSAGES ======
   int sequenceNumber = 0;
   Future<void> sendText(String message, {int destination = 2 }) async {
 
@@ -132,14 +114,11 @@ class BleController extends ChangeNotifier {
       source: 1,
       destination: destination,
       sequence: sequenceNumber++,
+      length: bytes.length,
       payload: bytes,
     );
 
-    await _bleService.writeToCharacteristic(
-      serviceUuid,
-      rxCharacteristicUuid,
-      packet.toBytes(),
-    );
+    await _bleService.sendPacket(serviceUuid, rxCharacteristicUuid, packet);
 
     service.addMessage(
       senderId: packet.source,

@@ -1,27 +1,23 @@
-import 'dart:ffi';
 import 'dart:typed_data';
 
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-
+import 'package:test_app/models/helpers/packet_model.dart';
 class BleService {
-  // BLE service implementation
-
   BluetoothDevice? _connectedDevice;
   List<BluetoothService> _deviceServices = [];
 
-  // Stram for scanning results
+  // ====== SCANNING ======
   Stream<List<ScanResult>> get scanResults => FlutterBluePlus.scanResults;
-
-  // Check Bluetooth state
   Stream<BluetoothAdapterState> get bluetoothState =>
       FlutterBluePlus.adapterState;
 
-  // ====== SCAN ======
-  Future<void> startScan({String serviceUuid = "12345678-1234-5678-1234-56789abcdef0",int timeoutSeconds = 5}) async {
+  Future<void> startScan({
+    String serviceUuid = "12345678-1234-5678-1234-56789abcdef0",
+    int timeoutSeconds = 5,
+  }) async {
     await FlutterBluePlus.startScan(
       timeout: Duration(seconds: timeoutSeconds),
       withServices: [Guid(serviceUuid)],
-      
     );
   }
 
@@ -29,7 +25,7 @@ class BleService {
     await FlutterBluePlus.stopScan();
   }
 
-  // ====== CONNECT ======
+  // ====== CONNECTION ======
   Future<void> connectToDevice(BluetoothDevice device) async {
     await device.connect();
     _connectedDevice = device;
@@ -46,57 +42,50 @@ class BleService {
 
   BluetoothDevice? get connectedDevice => _connectedDevice;
 
-  // ====== READ / WRITE ======
-  Future<void> writeToCharacteristic(
+  // ====== WRITE (Flutter → ESP32) ======
+  Future<void> sendPacket(
     Guid serviceUuid,
-    Guid charUuid,
-    List<int> value,
+    Guid rxCharacteristicUuid,
+    Packet packet,
   ) async {
     final service = _deviceServices.firstWhere(
       (s) => s.uuid == serviceUuid,
       orElse: () => throw Exception("Service not found"),
     );
-    final characteristic = service.characteristics.firstWhere(
-      (c) => c.uuid == charUuid,
+    final rxCharacteristic = service.characteristics.firstWhere(
+      (c) => c.uuid == rxCharacteristicUuid,
       orElse: () => throw Exception("Characteristic not found"),
     );
-    final bytes = Uint8List.fromList(value);
-    await characteristic.write(bytes); 
+
+    final bytes = Uint8List.fromList(packet.toBytes());
+    await rxCharacteristic.write(bytes);
   }
 
-  Future<List<int>> readFromCharacteristic(
-    Guid serviceUuid,
-    Guid charUuid,
-  ) async {
-    final service = _deviceServices.firstWhere(
-      (s) => s.uuid == serviceUuid,
-      orElse: () => throw Exception("Service not found"),
-    );
-    final characteristic = service.characteristics.firstWhere(
-      (c) => c.uuid == charUuid,
-      orElse: () => throw Exception("Characteristic not found"),
-    );
-    return await characteristic.read();
-  }
-
-  // ====== NOTIFICATIONS ======
-
+  // ====== LISTEN (ESP32 → Flutter) ======
   Future<void> listenToNotifications(
     Guid serviceUuid,
-    Guid charUuid,
-    void Function(List<int>) onData, 
+    Guid txCharacteristicUuid,
+    void Function(Packet packet) onPacketReceived,
   ) async {
     final service = _deviceServices.firstWhere(
       (s) => s.uuid == serviceUuid,
       orElse: () => throw Exception("Service not found"),
     );
-    final characteristic = service.characteristics.firstWhere(
-      (c) => c.uuid == charUuid,
+    final txCharacteristic = service.characteristics.firstWhere(
+      (c) => c.uuid == txCharacteristicUuid,
       orElse: () => throw Exception("Characteristic not found"),
     );
 
-    await characteristic.setNotifyValue(true);
-    characteristic.onValueReceived.listen(onData);
-  }
+    await txCharacteristic.setNotifyValue(true);
 
+    txCharacteristic.onValueReceived.listen((data) {
+      if (data.isEmpty) return;
+      try {
+        final packet = Packet.fromBytes(data);
+        onPacketReceived(packet);
+      } catch (e) {
+        print("⚠️ Invalid packet received: $e");
+      }
+    });
+  }
 }

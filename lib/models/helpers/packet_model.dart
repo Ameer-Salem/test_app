@@ -1,10 +1,9 @@
-import 'dart:ffi';
 import 'dart:typed_data';
 
 class Packet {
-  final int type; // 0 for text, 1 for attachment
-  final int source; // 0 for device, 1 for user
-  final int destination; // 0 for device, 1 for user
+  final int type; 
+  final int source; 
+  final int destination; 
   final int sequence;
   final int length;
   final List<int> payload;
@@ -14,8 +13,9 @@ class Packet {
     required this.source,
     required this.destination,
     required this.sequence,
+    required this.length,
     required this.payload,
-  }) : length = payload.length;
+  });
 
   Uint8List toBytes() {
     final bytes = BytesBuilder();
@@ -32,6 +32,7 @@ class Packet {
       source: bytes[1],
       destination: bytes[2],
       sequence: bytes[3],
+      length: bytes[4],
       payload: bytes.sublist(5)
     );
   }

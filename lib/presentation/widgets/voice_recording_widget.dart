@@ -4,7 +4,7 @@ import 'package:flutter/scheduler.dart';
 class VoiceRecorderWidget extends StatefulWidget {
   final void Function()? onSend; // callback when user finishes recording
 
-  const VoiceRecorderWidget({Key? key, this.onSend}) : super(key: key);
+  const VoiceRecorderWidget({super.key, this.onSend});
 
   @override
   State<VoiceRecorderWidget> createState() => _VoiceRecorderWidgetState();
