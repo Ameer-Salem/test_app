@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:provider/provider.dart';
+import 'package:test_app/logic/device_manager.dart';
 
 class BleCheckScreen extends StatefulWidget {
   const BleCheckScreen({super.key});
@@ -20,11 +22,10 @@ class _BleCheckScreenState extends State<BleCheckScreen> {
   void initState() {
     super.initState();
     _runChecks();
-
     adapterStateSubscription = FlutterBluePlus.adapterState.listen((state) {
       if (mounted) {
         setState(() {
-          adapterState = state ;
+          adapterState = state;
         });
       }
     });
@@ -42,7 +43,6 @@ class _BleCheckScreenState extends State<BleCheckScreen> {
     } else {
       setState(() => _platformSupported = false);
     }
-
   }
 
   Widget _buildCheckTile(String title, bool? value) {
@@ -64,9 +64,9 @@ class _BleCheckScreenState extends State<BleCheckScreen> {
       trailing: trailing,
     );
   }
+
   @override
   void dispose() {
-    // TODO: implement dispose
     adapterStateSubscription?.cancel();
     super.dispose();
   }
@@ -89,9 +89,14 @@ class _BleCheckScreenState extends State<BleCheckScreen> {
             SizedBox(height: MediaQuery.sizeOf(context).height * 0.1),
             if (allGood)
               ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
                   // Navigate to your scanner screen
-                  Navigator.pushReplacementNamed(context, "/main");
+                  await Provider.of<DeviceManager>(
+                    context,
+                    listen: false,
+                  ).init();
+                  if (context.mounted)
+                    Navigator.pushReplacementNamed(context, "/main");
                 },
                 child: const Text(
                   "Continue",

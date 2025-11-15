@@ -1,74 +1,87 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:provider/provider.dart';
-import 'package:test_app/controllers/ble_controller.dart';
+import 'package:test_app/logic/device_manager.dart';
+import 'package:test_app/models/helpers/connection_state.dart';
 
-class DeviceScreen extends StatelessWidget {
-  final BluetoothDevice device;
-  const DeviceScreen({super.key, required this.device});
+class DeviceScreen extends StatefulWidget {
+  const DeviceScreen({super.key});
 
   @override
+  State<DeviceScreen> createState() => _DeviceScreenState();
+}
+
+class _DeviceScreenState extends State<DeviceScreen> {
+  @override
   Widget build(BuildContext context) {
-    final bleController = context.watch<BleController>();
+    final manager = Provider.of<DeviceManager>(context);
+    final device = manager.device;
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          onPressed: () {
-            bleController.startScan();
-            Navigator.pop(context);
-          },
-          icon: Icon(Icons.arrow_back_rounded),
-        ),
-        title: Text(
-          device.advName.isNotEmpty ? device.advName : "Unnamed Device",
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () => bleController.disconnect(),
-          ),
-        ],
-      ),
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              bleController.isConnected
-                  ? "Connected to ${device.advName}"
-                  : "Not connected",
-              style: const TextStyle(fontSize: 18),
-            ),
-            const SizedBox(height: 20),
+        child: manager.state == ConnectionStates.disconnected
+            ? Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.error_outline_rounded,
+                    color: Colors.red,
+                    size: 100,
+                  ),
+                  SizedBox(height: 20),
+                  Text("Device not found", style: TextStyle(fontSize: 18)),
+                  SizedBox(height: 10),
+                  ElevatedButton(
+                    onPressed: () async{
+                        await Navigator.pushReplacementNamed(context, '/scan');
+                    },
+                    child: Text('Scan'),
+                  ),
+                ],
+              )
+            : Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    "Connected to ${device!.advName}",
+                    style: const TextStyle(fontSize: 18),
+                  ),
+                  const SizedBox(height: 20),
 
-            if (bleController.isConnecting)
-              const CircularProgressIndicator()
-            else
-              ElevatedButton(
-                onPressed: bleController.isConnected
-                    ? bleController.disconnect
-                    : () => bleController.connect(device),
-                child: Text(
-                  bleController.isConnected ? "Disconnect" : "Connect",
-                ),
+                  if (manager.state == ConnectionStates.connecting ||
+                      manager.state == ConnectionStates.disconnecting)
+                    const CircularProgressIndicator()
+                  else
+                    ElevatedButton(
+                      onPressed: () async {
+                        await disconnect(() => manager.disconnect());
+                      },
+                      child: Text("Disconnect"),
+                    ),
+
+                  const SizedBox(height: 40),
+
+                  if (manager.state == ConnectionStates.connected)
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        // Placeholder for chat / data screen navigation
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Ready for data exchange!'),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.chat),
+                      label: const Text("Open Chat / Data"),
+                    ),
+                ],
               ),
-
-            const SizedBox(height: 40),
-
-            if (bleController.isConnected)
-              ElevatedButton.icon(
-                onPressed: () {
-                  // Placeholder for chat / data screen navigation
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Ready for data exchange!')),
-                  );
-                },
-                icon: const Icon(Icons.chat),
-                label: const Text("Open Chat / Data"),
-              ),
-          ],
-        ),
       ),
     );
+  }
+
+  Future<void> disconnect(Function()? onPressed) async {
+    // Implement disconnect logic if needed
+    await onPressed?.call();
+    setState(() {});
   }
 }

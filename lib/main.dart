@@ -1,17 +1,18 @@
 import 'package:adaptive_theme/adaptive_theme.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
-import 'package:test_app/controllers/ble_controller.dart';
-import 'package:test_app/controllers/main_controller.dart';
-import 'package:test_app/controllers/messaging_controller.dart';
-import 'package:test_app/controllers/settings_controller.dart';
-import 'package:test_app/models/app_database.dart';
+import 'package:test_app/logic/device_manager.dart';
+import 'package:test_app/logic/main_controller.dart';
+import 'package:test_app/logic/messaging_controller.dart';
+import 'package:test_app/logic/settings_controller.dart';
 import 'package:test_app/presentation/screens/ble_check.dart';
 import 'package:test_app/presentation/screens/device_screen.dart';
 import 'package:test_app/presentation/screens/main_screen.dart';
-import 'package:test_app/presentation/screens/messaging_screen.dart';
+import 'package:test_app/presentation/screens/scan_screen.dart';
+import 'package:test_app/services/ble_service.dart';
+import 'package:test_app/services/database_service.dart';
+import 'package:test_app/services/storage_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,14 +20,24 @@ Future<void> main() async {
   await Permission.bluetoothScan.request();
   await Permission.bluetoothConnect.request();
   await Permission.location.request();
-  final db = AppDatabase();
+
+  final bleService = BleService();
+  final dbService = DatabaseService();
+  final storageService = StorageService();
+
+  final deviceManager = DeviceManager(
+    bleService: bleService,
+    dbService: dbService,
+    storageService: storageService,
+  );
+
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => MainController()),
         ChangeNotifierProvider(create: (_) => SettingsController()),
         ChangeNotifierProvider(create: (_) => MessagingController()),
-        ChangeNotifierProvider(create: (_) => BleController(db)),
+        ChangeNotifierProvider(create:  (_) => deviceManager),
       ],
       child: const MyApp(),
     ),
@@ -52,16 +63,8 @@ class MyApp extends StatelessWidget {
         routes: {
           "/": (context) => BleCheckScreen(),
           "/main": (context) => MainScreen(),
-          "/main/messaging": (context) => MessagingScreen(),
-        },
-        onGenerateRoute: (settings) {
-          if (settings.name == '/main/device') {
-            final device = settings.arguments as BluetoothDevice;
-            return MaterialPageRoute(
-              builder: (context) => DeviceScreen(device: device),
-            );
-          }
-          return null;
+          "/device": (context) =>  DeviceScreen(),
+          "/scan": (context) =>  ScanScreen(),
         },
       ),
     );

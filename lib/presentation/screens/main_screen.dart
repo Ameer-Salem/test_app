@@ -1,7 +1,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:test_app/controllers/main_controller.dart';
+import 'package:test_app/logic/main_controller.dart';
 import 'package:test_app/presentation/screens/chat_screen.dart';
 import 'package:test_app/presentation/screens/home_screen.dart';
 import 'package:test_app/presentation/screens/settings_screen.dart';

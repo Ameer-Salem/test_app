@@ -1,91 +1,149 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:test_app/models/helpers/packet_model.dart';
-class BleService {
-  BluetoothDevice? _connectedDevice;
-  List<BluetoothService> _deviceServices = [];
+import 'package:test_app/utils/converter_tool.dart';
 
-  // ====== SCANNING ======
+abstract class IBleService {
+  Stream<List<ScanResult>> get scanResults;
+  Future<void> startScan({Duration timeout = const Duration(seconds: 15)});
+  Future<void> connectToDevice(BluetoothDevice device);
+  Future<void> disconnectToDevice(BluetoothDevice device);
+  Future<int> readDeviceId(BluetoothDevice device);
+  Future<void> sendSegment({
+    required int type,
+    required int sourceId,
+    required int destinationId,
+    required int uid,
+    required int segmentIndex,
+    required int totalSegments,
+    required Uint8List data,
+  });
+  Future<void> sendAck({
+    required int type,
+    required int sourceId,
+    required int destinationId,
+    required int uid,
+  });
+}
+
+class BleService implements IBleService {
+  Guid serviceGUID = Guid('ffffffff-ffff-ffff-ffff-ffffffffffff');
+  Guid notifyGUID = Guid('ffffffff-ffff-ffff-ffff-fffffffffff0');
+  Guid readGUID = Guid('ffffffff-ffff-ffff-ffff-ffffffffff00');
+  Guid writeGUID = Guid('ffffffff-ffff-ffff-ffff-fffffffff000');
+  BluetoothCharacteristic? writeCharacteristic;
+  BluetoothCharacteristic? notifyCharacteristic;
+  BluetoothCharacteristic? readCharacteristic;
+
+  final StreamController<Uint8List> _incomingContoller =
+      StreamController.broadcast();
+
+  Stream<Uint8List> get incomingMessages => _incomingContoller.stream;
+
+  @override
   Stream<List<ScanResult>> get scanResults => FlutterBluePlus.scanResults;
-  Stream<BluetoothAdapterState> get bluetoothState =>
-      FlutterBluePlus.adapterState;
 
-  Future<void> startScan({
-    String serviceUuid = "12345678-1234-5678-1234-56789abcdef0",
-    int timeoutSeconds = 5,
-  }) async {
-    await FlutterBluePlus.startScan(
-      timeout: Duration(seconds: timeoutSeconds),
-      withServices: [Guid(serviceUuid)],
-    );
-  }
-
-  Future<void> stopScan() async {
-    await FlutterBluePlus.stopScan();
-  }
-
-  // ====== CONNECTION ======
+  @override
   Future<void> connectToDevice(BluetoothDevice device) async {
-    await device.connect();
-    _connectedDevice = device;
-    _deviceServices = await device.discoverServices();
-  }
+    try {
+      await device.connect(autoConnect: false);
+    } catch (e) {
+      return;
+    }
 
-  Future<void> disconnectDevice() async {
-    if (_connectedDevice != null) {
-      await _connectedDevice!.disconnect();
-      _connectedDevice = null;
-      _deviceServices.clear();
+    final services = await device.discoverServices();
+    for (var s in services) {
+      for (var c in s.characteristics) {
+        if (c.uuid == readGUID) {
+          // Store read characteristic
+          readCharacteristic = c;
+        }
+        if (c.uuid == writeGUID) {
+          // Store write characteristic
+          writeCharacteristic = c;
+        }
+        if (c.uuid == notifyGUID) {
+          // Store notify characteristic and set up notifications
+          notifyCharacteristic = c;
+          await c.setNotifyValue(true);
+          c.onValueReceived.listen((data) {
+            // Handle incoming data
+            _incomingContoller.add(Uint8List.fromList(data));
+          });
+        }
+      }
     }
   }
 
-  BluetoothDevice? get connectedDevice => _connectedDevice;
-
-  // ====== WRITE (Flutter → ESP32) ======
-  Future<void> sendPacket(
-    Guid serviceUuid,
-    Guid rxCharacteristicUuid,
-    Packet packet,
-  ) async {
-    final service = _deviceServices.firstWhere(
-      (s) => s.uuid == serviceUuid,
-      orElse: () => throw Exception("Service not found"),
-    );
-    final rxCharacteristic = service.characteristics.firstWhere(
-      (c) => c.uuid == rxCharacteristicUuid,
-      orElse: () => throw Exception("Characteristic not found"),
-    );
-
-    final bytes = Uint8List.fromList(packet.toBytes());
-    await rxCharacteristic.write(bytes);
+  @override
+  Future<void> disconnectToDevice(BluetoothDevice device) async {
+    await device.disconnect();
+    _incomingContoller.close();
+    writeCharacteristic = null;
+    notifyCharacteristic = null;
   }
 
-  // ====== LISTEN (ESP32 → Flutter) ======
-  Future<void> listenToNotifications(
-    Guid serviceUuid,
-    Guid txCharacteristicUuid,
-    void Function(Packet packet) onPacketReceived,
-  ) async {
-    final service = _deviceServices.firstWhere(
-      (s) => s.uuid == serviceUuid,
-      orElse: () => throw Exception("Service not found"),
-    );
-    final txCharacteristic = service.characteristics.firstWhere(
-      (c) => c.uuid == txCharacteristicUuid,
-      orElse: () => throw Exception("Characteristic not found"),
-    );
+  @override
+  Future<void> sendSegment({
+    required int type,
+    required int sourceId,
+    required int destinationId,
+    required int uid,
+    required int segmentIndex,
+    required int totalSegments,
+    required Uint8List data,
+  }) async {
+    if (writeCharacteristic != null) {
+      final packet = Packet(
+        uid: uid,
+        type: type,
+        sourceId: sourceId,
+        destinationId: destinationId,
+        segmentIndex: segmentIndex,
+        totalSegments: totalSegments,
+        payload: data,
+      ).toBytes();
 
-    await txCharacteristic.setNotifyValue(true);
+      await writeCharacteristic!.write(packet, withoutResponse: true);
+    }
+  }
 
-    txCharacteristic.onValueReceived.listen((data) {
-      if (data.isEmpty) return;
-      try {
-        final packet = Packet.fromBytes(data);
-        onPacketReceived(packet);
-      } catch (e) {
-        print("⚠️ Invalid packet received: $e");
-      }
-    });
+  @override
+  Future<void> sendAck({
+    required int type,
+    required int sourceId,
+    required int destinationId,
+    required int uid,
+  }) async {
+    if (writeCharacteristic != null) {
+      final packet = Packet(
+        uid: uid,
+        type: type,
+        sourceId: sourceId,
+        destinationId: destinationId,
+        segmentIndex: 0,
+        totalSegments: 0,
+        payload: Uint8List(0),
+      ).toBytes();
+      await writeCharacteristic!.write(packet, withoutResponse: true);
+    }
+  }
+
+  @override
+  Future<int> readDeviceId(BluetoothDevice device) async {
+    final deviceId = Uint8List.fromList(await readCharacteristic!.read());
+    return ConverterTool.uint8ListToInt(deviceId);
+  }
+
+  @override
+  Future<void> startScan({
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
+    await FlutterBluePlus.startScan(
+      timeout: timeout,
+      withServices: [serviceGUID],
+    );
   }
 }

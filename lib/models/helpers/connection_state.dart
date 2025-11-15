@@ -1,0 +1,1 @@
+enum ConnectionStates {disconnected, connecting, connected, disconnecting}
