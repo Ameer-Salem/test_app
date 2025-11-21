@@ -3,7 +3,7 @@ import 'package:test_app/models/drift/app_database.dart';
 import 'package:test_app/models/helpers/messagesWithSegments.dart';
 
 abstract class IDatabaseService {
-  Future<void> openDatabase(String deviceId);
+  Future<void> openDatabase(int deviceId);
   Future<void> closeDatabase();
   Future<int> insertMessage(MessagesCompanion message);
   Future<int> insertSegment(SegmentsCompanion segment);
@@ -28,7 +28,7 @@ class DatabaseService implements IDatabaseService {
   AppDatabase? get database => _db;
 
   @override
-  Future<void> openDatabase(String deviceId) async {
+  Future<void> openDatabase(int deviceId) async {
     await _db?.close();
 
     _db = AppDatabase(deviceId);
@@ -46,6 +46,7 @@ class DatabaseService implements IDatabaseService {
 
   @override
   Stream<List<MessageWithSegments>> watchMessages() {
+    if (_db == null) return Stream.empty();
     final query = _db!.select(_db!.messages)
       ..orderBy([(t) => OrderingTerm.desc(t.timestamp)]);
 
@@ -65,26 +66,32 @@ class DatabaseService implements IDatabaseService {
 
   @override
   Future<void> incrementSegmentRetry(Segment segment) async {
+    if (_db == null) return;
+
     await (_db!.update(_db!.segments)..where((s) => s.id.equals(segment.id)))
         .write(SegmentsCompanion(retryCount: Value(segment.retryCount + 1)));
   }
 
   @override
   Future<void> markMessageAck(int messageId) async {
+    if (_db == null) return;
+
     await (_db!.update(_db!.messages)..where((s) => s.id.equals(messageId)))
         .write(MessagesCompanion(status: const Value('delivered')));
   }
 
   @override
   Future<void> markSegmentAck(int segmentId) async {
+    if (_db == null) return;
+
     await (_db!.update(_db!.segments)..where((s) => s.id.equals(segmentId)))
         .write(SegmentsCompanion(ackReceived: const Value(true)));
   }
 
   Future<Segment> getSegment(int uid, int segmentIndex) async {
-    final seg = _db!.select(_db!.segments)
-      ..where((s) => s.uid.equals(uid) & s.segmentIndex.equals(segmentIndex));
-    return await seg.getSingle();
+      final seg = _db!.select(_db!.segments)
+        ..where((s) => s.uid.equals(uid) & s.segmentIndex.equals(segmentIndex));
+      return await seg.getSingle();
   }
 
   Future<bool> checkUID(int uid) async {

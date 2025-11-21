@@ -23,28 +23,31 @@ class DeviceManager extends ChangeNotifier {
     required this.dbService,
     required this.storageService,
   }) {
-    scan();
     scanSubscription = bleService.scanResults.listen((results) {
       devices = results;
-      print(devices);
       notifyListeners();
-    },
-    onDone: () => scanSubscription.cancel(),
-    );
+    }, onDone: () => scanSubscription.cancel());
   }
 
   Future<void> init() async {
     final lastDeviceId = await storageService.getLastDeviceId();
-    await scan(timeout: const Duration(seconds: 5));
-    if (lastDeviceId != null) {
+    if (lastDeviceId != null &&
+        devices.any(
+          (d) =>
+              int.parse(
+                d.device.remoteId.toString().replaceAll(':', ''),radix: 16
+              ) ==
+              int.parse(lastDeviceId),
+        )) {
       await connectToDeviceById(lastDeviceId);
     }
   }
 
   Future<void> connectToDeviceById(String lastDeviceId) async {
     state = ConnectionStates.connecting;
+    final int lastDeviceIdInt = int.parse(lastDeviceId);
     final target = devices.firstWhere(
-      (r) => r.device.remoteId.toString() == lastDeviceId,
+      (r) => int.parse(r.device.remoteId.toString().replaceAll(':', '') , radix: 16) == lastDeviceIdInt,
       orElse: () => throw Exception('Device not found'),
     );
     await connect(target.device);
@@ -55,8 +58,8 @@ class DeviceManager extends ChangeNotifier {
     notifyListeners();
     await bleService.connectToDevice(target);
     final deviceId = await bleService.readDeviceId(target);
-
-    dbService.closeDatabase();
+    bleService.connectedDeviceId = deviceId;
+    await dbService.closeDatabase();
 
     await dbService.openDatabase(deviceId);
 
@@ -72,8 +75,7 @@ class DeviceManager extends ChangeNotifier {
       state = ConnectionStates.disconnecting;
       await bleService.disconnectToDevice(device!);
       await dbService.closeDatabase();
-      await storageService.clearLastDeviceId
-      ();
+      await storageService.clearLastDeviceId();
       device = null;
       state = ConnectionStates.disconnected;
     }

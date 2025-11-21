@@ -95,6 +95,10 @@ class _BleCheckScreenState extends State<BleCheckScreen> {
                     context,
                     listen: false,
                   ).init();
+                  Provider.of<DeviceManager>(
+                    context,
+                    listen: false,
+                  ).scan();
                   if (context.mounted)
                     Navigator.pushReplacementNamed(context, "/main");
                 },

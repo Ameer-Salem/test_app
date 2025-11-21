@@ -4,11 +4,13 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:test_app/logic/device_manager.dart';
 import 'package:test_app/logic/main_controller.dart';
+import 'package:test_app/logic/message_manager.dart';
 import 'package:test_app/logic/messaging_controller.dart';
 import 'package:test_app/logic/settings_controller.dart';
 import 'package:test_app/presentation/screens/ble_check.dart';
 import 'package:test_app/presentation/screens/device_screen.dart';
 import 'package:test_app/presentation/screens/main_screen.dart';
+import 'package:test_app/presentation/screens/messaging_screen.dart';
 import 'package:test_app/presentation/screens/scan_screen.dart';
 import 'package:test_app/services/ble_service.dart';
 import 'package:test_app/services/database_service.dart';
@@ -31,6 +33,11 @@ Future<void> main() async {
     storageService: storageService,
   );
 
+  final messageManager = MessageManager(
+    bleService: bleService,
+    dbService: dbService,
+  );
+
   runApp(
     MultiProvider(
       providers: [
@@ -38,6 +45,7 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => SettingsController()),
         ChangeNotifierProvider(create: (_) => MessagingController()),
         ChangeNotifierProvider(create:  (_) => deviceManager),
+        ChangeNotifierProvider(create:  (_) => messageManager),
       ],
       child: const MyApp(),
     ),
@@ -63,9 +71,11 @@ class MyApp extends StatelessWidget {
         routes: {
           "/": (context) => BleCheckScreen(),
           "/main": (context) => MainScreen(),
+          "/main/messaging": (context) => MessagingScreen(),
           "/device": (context) =>  DeviceScreen(),
           "/scan": (context) =>  ScanScreen(),
         },
+        
       ),
     );
   }

@@ -3,9 +3,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 class StorageService {
   static const _lastDeviceKey = 'lastDeviceId';
 
-  Future<void> saveLastDeviceId(String id) async {
+  Future<void> saveLastDeviceId(int id) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_lastDeviceKey, id);
+    id = int.parse(id.toString());
+    await prefs.setString(_lastDeviceKey, id.toString());
   }
 
   Future<String?> getLastDeviceId() async {

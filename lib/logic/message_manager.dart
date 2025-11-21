@@ -1,11 +1,13 @@
 // ignore_for_file: non_constant_identifier_names
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:drift/drift.dart';
 import 'package:flutter/material.dart';
 import 'package:test_app/models/drift/app_database.dart';
+import 'package:test_app/models/helpers/messagesWithSegments.dart';
 import 'package:test_app/models/helpers/packet_model.dart';
 import 'package:test_app/services/ble_service.dart';
 import 'package:test_app/services/database_service.dart';
@@ -15,21 +17,19 @@ import 'package:uuid/uuid.dart';
 class MessageManager extends ChangeNotifier {
   final DatabaseService dbService;
   final BleService bleService;
-  final ACK_TYPE = 1;
-  late int myId;
+  final ACK_TYPE = 0;
   final List<_QueuedMessages> _outgoingQueueMessages = [];
   final List<_QueuedSegment> _outgoingQueueSegments = [];
 
   final List<ReassemblyBuffer> reassemblyBuffers = [];
 
   MessageManager({required this.dbService, required this.bleService}) {
-    myId = 2;
     _startRetryTimer();
     bleService.incomingMessages.listen((ondata) {
       _handleIncomingMessage(ondata);
     });
   }
-
+  int get deviceId => bleService.connectedDeviceId;
   Future<void> sendMessage({
     required String payload,
     required int senderId,
@@ -37,17 +37,18 @@ class MessageManager extends ChangeNotifier {
     required int type,
   }) async {
     final uuid = Uuid().v4obj().toBytes();
-    final uid = ConverterTool.uint8ListToInt(uuid.sublist(0, 8));
+
+    final uid = ConverterTool.uint8ListToInt(uuid.sublist(0, 6));
 
     final segmentSize = 200;
     final bytes = Uint8List.fromList(payload.codeUnits);
     final totalSegments = (bytes.length / segmentSize).ceil();
 
-    await insertMessage(
-      uid,
+    await _insertMessage(
+      type,
       senderId,
       receiverId,
-      type,
+      uid,
       totalSegments,
       payload,
     );
@@ -101,17 +102,17 @@ class MessageManager extends ChangeNotifier {
     }
   }
 
-  Future<int> insertMessage(
-    int uniqueId,
+  Future<int> _insertMessage(
+    int type,
     int senderId,
     int receiverId,
-    int type,
+    int uid,
     int totalSegments,
     String payload,
   ) async {
     final msgId = await dbService.insertMessage(
       MessagesCompanion.insert(
-        uid: uniqueId,
+        uid: uid,
         sourceId: senderId,
         destinationId: receiverId,
         type: type,
@@ -160,9 +161,8 @@ class MessageManager extends ChangeNotifier {
   }
 
   void _startRetryTimer() {
-    Timer.periodic(Duration(seconds: 4), (timer) async {
+    Timer.periodic(Duration(seconds: 10), (timer) async {
       if (_outgoingQueueSegments.isEmpty) {
-        timer.cancel();
         return;
       }
 
@@ -196,11 +196,11 @@ class MessageManager extends ChangeNotifier {
     final packet = Packet.fromBytes(ondata);
     if (packet == null) return;
 
-    if (packet.type == ACK_TYPE && packet.destinationId == myId) {
+    if (packet.type == ACK_TYPE ) {
       _handleAck(packet);
     }
 
-    if (packet.type != ACK_TYPE && packet.destinationId == myId) {
+    if (packet.type != ACK_TYPE ) {
       _handleData(packet);
     }
   }
@@ -217,10 +217,9 @@ class MessageManager extends ChangeNotifier {
     if (_outgoingQueueSegments.isEmpty) {
       _outgoingQueueMessages.removeWhere((m) => m.uid == packet.uid);
     }
-
     _sendNextSegment();
   }
-
+  Stream<List<MessageWithSegments>> watchMessages() => dbService.watchMessages();
   void _handleData(Packet packet) async {
     BufferSegment segment = BufferSegment(
       segmentIndex: packet.segmentIndex,
@@ -247,17 +246,24 @@ class MessageManager extends ChangeNotifier {
 
     if (!segmentExists) {
       buffer.segments.add(segment);
-    } else {
-      //send ack
     }
+    //send ack
+    bleService.sendAck(
+      type: ACK_TYPE,
+      sourceId: bleService.connectedDeviceId,
+      destinationId: packet.sourceId,
+      segmentIndex: packet.segmentIndex,
+      uid: packet.uid,
+    );
 
     if (buffer.segments.length == buffer.totalSegments) {
+      buffer.segments.sort((a, b) => a.segmentIndex.compareTo(b.segmentIndex));
       final payload = _joinSegmentsAsString(buffer.segments);
-      await insertMessage(
-        packet.uid,
+      await _insertMessage(
+        packet.type,
         packet.sourceId,
         packet.destinationId,
-        0,
+        packet.uid,
         buffer.totalSegments,
         payload,
       );
@@ -271,7 +277,7 @@ class MessageManager extends ChangeNotifier {
       builder.add(s.payload);
     }
     // convert bytes to UTF-8 string
-    return String.fromCharCodes(builder.toBytes());
+    return utf8.decode(builder.toBytes());
   }
 }
 

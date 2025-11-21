@@ -3,10 +3,11 @@ import 'dart:typed_data';
 
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:test_app/models/helpers/packet_model.dart';
-import 'package:test_app/utils/converter_tool.dart';
 
 abstract class IBleService {
   Stream<List<ScanResult>> get scanResults;
+  int get connectedDeviceId;
+  set connectedDeviceId(int x);
   Future<void> startScan({Duration timeout = const Duration(seconds: 15)});
   Future<void> connectToDevice(BluetoothDevice device);
   Future<void> disconnectToDevice(BluetoothDevice device);
@@ -24,6 +25,7 @@ abstract class IBleService {
     required int type,
     required int sourceId,
     required int destinationId,
+    required int segmentIndex,
     required int uid,
   });
 }
@@ -31,7 +33,6 @@ abstract class IBleService {
 class BleService implements IBleService {
   Guid serviceGUID = Guid('ffffffff-ffff-ffff-ffff-ffffffffffff');
   Guid notifyGUID = Guid('ffffffff-ffff-ffff-ffff-fffffffffff0');
-  Guid readGUID = Guid('ffffffff-ffff-ffff-ffff-ffffffffff00');
   Guid writeGUID = Guid('ffffffff-ffff-ffff-ffff-fffffffff000');
   BluetoothCharacteristic? writeCharacteristic;
   BluetoothCharacteristic? notifyCharacteristic;
@@ -45,21 +46,24 @@ class BleService implements IBleService {
   @override
   Stream<List<ScanResult>> get scanResults => FlutterBluePlus.scanResults;
 
+  int _connectedDeviceId = 0;
+  @override
+  int get connectedDeviceId => _connectedDeviceId;
+  @override
+  set connectedDeviceId(int x) => _connectedDeviceId = x;
+
   @override
   Future<void> connectToDevice(BluetoothDevice device) async {
     try {
       await device.connect(autoConnect: false);
+      connectedDeviceId = await readDeviceId(device);
     } catch (e) {
+      print('==== Ble connection error : $e ====');
       return;
     }
-
     final services = await device.discoverServices();
     for (var s in services) {
       for (var c in s.characteristics) {
-        if (c.uuid == readGUID) {
-          // Store read characteristic
-          readCharacteristic = c;
-        }
         if (c.uuid == writeGUID) {
           // Store write characteristic
           writeCharacteristic = c;
@@ -80,7 +84,6 @@ class BleService implements IBleService {
   @override
   Future<void> disconnectToDevice(BluetoothDevice device) async {
     await device.disconnect();
-    _incomingContoller.close();
     writeCharacteristic = null;
     notifyCharacteristic = null;
   }
@@ -96,6 +99,9 @@ class BleService implements IBleService {
     required Uint8List data,
   }) async {
     if (writeCharacteristic != null) {
+      print(
+        'type: $type sourceId: $sourceId destinationId: $destinationId uid: $uid segmentIndex: $segmentIndex totalSegments: $totalSegments data: $data',
+      );
       final packet = Packet(
         uid: uid,
         type: type,
@@ -105,8 +111,8 @@ class BleService implements IBleService {
         totalSegments: totalSegments,
         payload: data,
       ).toBytes();
-
-      await writeCharacteristic!.write(packet, withoutResponse: true);
+      print(packet);
+      await writeCharacteristic!.write(packet, withoutResponse: false);
     }
   }
 
@@ -115,6 +121,7 @@ class BleService implements IBleService {
     required int type,
     required int sourceId,
     required int destinationId,
+    required int segmentIndex,
     required int uid,
   }) async {
     if (writeCharacteristic != null) {
@@ -123,18 +130,18 @@ class BleService implements IBleService {
         type: type,
         sourceId: sourceId,
         destinationId: destinationId,
-        segmentIndex: 0,
+        segmentIndex: segmentIndex,
         totalSegments: 0,
         payload: Uint8List(0),
       ).toBytes();
-      await writeCharacteristic!.write(packet, withoutResponse: true);
+      await writeCharacteristic!.write(packet);
     }
   }
 
   @override
   Future<int> readDeviceId(BluetoothDevice device) async {
-    final deviceId = Uint8List.fromList(await readCharacteristic!.read());
-    return ConverterTool.uint8ListToInt(deviceId);
+    final deviceId = device.remoteId.toString().replaceAll(':', '');
+    return int.parse(deviceId, radix: 16);
   }
 
   @override
